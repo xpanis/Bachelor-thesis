@@ -1,0 +1,318 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <TimerOne.h>
+#include <String.h>
+#include <SD.h>
+#include <SPI.h>
+
+#define BACKLIGHT_PIN 3
+#define RELAY1  3
+#define RELAY2  4 //volne
+#define Button  9
+#define ONE_WIRE_BUS 2
+#define CS_PIN 10
+
+OneWire ourWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&ourWire);
+
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7);
+
+int analogInput = 0;
+int analogInputAMP = 1;
+float vout = 0.0;
+float vin = 0.0;
+float R1 = 97500.0;
+float R2 = 9920.0;
+int value = 0;
+
+float amps = 0.0;
+float rawAmps = 0.0;
+float val = 0.0;
+
+int flag = 0;
+int flag_inc = 0;
+float amp_average = 0;
+float last_average = 0;
+
+float timer2 = 0;
+float timer = 0;
+
+int iterator = 1;
+
+File file;
+
+void setup()
+{
+  Serial.begin(9600);
+
+  Timer1.initialize(500000);
+  Timer1.attachInterrupt(Time_function);
+
+  pinMode(RELAY1, OUTPUT);
+  pinMode(analogInput, INPUT);
+  pinMode(analogInputAMP, INPUT);
+  pinMode(Button, INPUT);
+
+  initializeSD();
+  createFile("test.txt");
+  file.println("**************************************************\n");
+  closeFile();
+
+  lcd.begin(16,2);   // initialize the lcd for 16 chars 2 lines, turn on backlight
+  lcd.setBacklightPin(BACKLIGHT_PIN, POSITIVE);
+  lcd.setBacklight(HIGH);
+  lcd.home();
+  sensors.begin();
+}
+
+void initializeSD()
+{
+  //Serial.println("Initializing SD card...");
+  pinMode(CS_PIN, OUTPUT);
+
+  if (SD.begin())
+  {
+    //Serial.println("SD card is ready to use.");
+  } else
+  {
+    //Serial.println("SD card initialization failed");
+    return;
+  }
+}
+
+int createFile(char filename[])
+{
+  file = SD.open(filename, FILE_WRITE);
+
+  if (file)
+  {
+    //Serial.println("File created successfully.");
+    return 1;
+  } else
+  {
+    //Serial.println("Error while creating file.");
+    return 0;
+  }
+}
+
+int writeToFile(char text[])
+{
+  if (file)
+  {
+    file.print(text);
+    //Serial.print("Writing to file: ");
+    //Serial.print(text);
+    return 1;
+  } else
+  {
+    //Serial.println("Couldn't write to file");
+    return 0;
+  }
+}
+
+int writeToFileInt(int number)
+{
+  if (file)
+  {
+    file.println(number);
+    //Serial.println("Writing to file: ");
+    //Serial.println(number);
+    return 1;
+  } else
+  {
+    //Serial.println("Couldn't write to file");
+    return 0;
+  }
+}
+
+int writeToFileFloat(float number)
+{
+  if (file)
+  {
+    file.println(number);
+    //Serial.println("Writing to file: ");
+    //Serial.println(number);
+    return 1;
+  } else
+  {
+    //Serial.println("Couldn't write to file");
+    return 0;
+  }
+}
+
+void closeFile()
+{
+  if (file)
+  {
+    file.close();
+    //Serial.println("File closed");
+  }
+}
+
+int openFile(char filename[])
+{
+  file = SD.open(filename);
+  if (file)
+  {
+    //Serial.println("File opened with success!");
+    return 1;
+  } else
+  {
+    //Serial.println("Error opening file...");
+    return 0;
+  }
+}
+
+String readLine()
+{
+  String received = "";
+  char ch;
+  while (file.available())
+  {
+    ch = file.read();
+    if (ch == '\n')
+    {
+      return String(received);
+    }
+    else
+    {
+      received += ch;
+    }
+  }
+  return "";
+}
+
+void Time_function() {
+  timer2++;
+  //Serial.println(timer2);
+}
+
+void loop()
+{
+sensors.requestTemperatures();
+float temperature = sensors.getTempCByIndex(0);
+
+    value = analogRead(analogInput);
+    vout = (value * 4.96) / 1024.0;
+    vin = vout * 10.828629032;
+
+    if (digitalRead(Button) == HIGH)
+    {
+        flag = 1;
+    }
+    
+      if (vin<0.09)
+      {
+        vin=0.0;
+      } 
+
+      if (vin >= 4.2)
+      {
+        digitalWrite(RELAY1,LOW);
+      }
+      else
+      {
+        digitalWrite(RELAY1,HIGH);
+      }
+
+    rawAmps = 0;
+    amps = 0;
+    for (int i=0;i<250;i++) {
+    rawAmps += analogRead(A1);
+    delay(2);
+      if (digitalRead(Button) == HIGH)
+      {
+        flag = 1;
+      }
+    }
+    
+    rawAmps = rawAmps / 250;
+    val = ((5 * rawAmps) / 1024);
+    amps = ((val - 2.5) / 0.185)*1000;    
+    amp_average += amps;
+
+    flag_inc++;
+
+    if (flag_inc == 10)
+    {
+    float finito_amp = amp_average / 10;
+    amp_average = 0;
+    flag_inc = 0;
+    last_average = finito_amp;
+    }
+    timer = timer2 / 2;    
+
+  lcd.setCursor(0, 0);
+  if (flag == 0) {
+    lcd.print("U=");
+    lcd.print(vin);
+    lcd.print("V ");  
+
+    lcd.print("T=");
+    lcd.print(temperature);
+    lcd.print("C");
+  }
+  else {
+    lcd.print("I=");
+    float temp = amps / 1000;
+    if (temp >= 0) {
+      lcd.print(" ");
+      lcd.print(temp,3);
+    }
+    else  {
+      temp = temp * (-1);
+      lcd.print("-");
+      lcd.print(temp,3);
+    }
+    lcd.print("A ");  
+
+    temp = last_average / 1000;
+    if (temp >= 0) {
+      lcd.print(" ");
+      lcd.print(temp,3);
+    }
+    else  {
+      temp = temp * (-1);
+      lcd.print("-");
+      lcd.print(temp,3);
+    }
+  }
+
+  if (flag == 1)
+  {
+    lcd.setCursor(0, 1);
+    lcd.print(".");
+    flag = 0;
+  }
+  else
+  {
+  lcd.setCursor(0, 1);
+  lcd.print(" ");
+  flag = 0;
+  }
+
+  createFile("test.txt");
+  
+  writeToFile("Meranie c.: ");
+  writeToFileInt(iterator);
+  writeToFileFloat(vin);
+  writeToFileFloat(amps);
+  writeToFileFloat(last_average);
+  writeToFileFloat(timer);
+  writeToFileFloat(temperature);  
+  closeFile();
+
+  Serial.print("Meranie c.: ");
+  Serial.print(iterator);
+  Serial.print(".");
+  Serial.println();
+  Serial.println(vin);
+  Serial.println(amps);
+  Serial.println(last_average);
+  Serial.println(timer);
+  Serial.println(temperature);
+  Serial.println();
+  iterator++;
+}
