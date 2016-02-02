@@ -1,0 +1,48 @@
+#include <stdio.h>
+
+char psResponse[1024] = "";
+
+int main(void) {
+float temp = 0;
+int c, iterator=0;
+char trash[50], a;
+FILE *f_read;
+FILE *f_voltage, *f_current, *f_avgcurrent, *f_temperature, *f_time;
+
+f_read = fopen("TEST.txt", "r");
+
+f_voltage = fopen("voltage.txt", "w");
+f_current = fopen("current.txt", "w");
+f_avgcurrent = fopen("avgcurrent.txt", "w");
+f_temperature = fopen("temperature.txt", "w");
+f_time = fopen("time.txt", "w");
+
+f_voltage = fopen("voltage.txt", "a");
+f_current = fopen("current.txt", "a");
+f_avgcurrent = fopen("avgcurrent.txt", "a");
+f_temperature = fopen("temperature.txt", "a");
+f_time = fopen("time.txt", "a");
+
+while((c = getc(f_read)) != EOF)
+{
+		ungetc(c,f_read);
+		while((a = getc(f_read)) != '\n')
+
+		fscanf(f_read,"%f",&temp);
+		fprintf(f_voltage, "%f\n", temp);
+
+		fscanf(f_read,"%f",&temp);
+		fprintf(f_current, "%f\n", temp);
+
+		fscanf(f_read,"%f",&temp);
+		fprintf(f_avgcurrent, "%f\n", temp);
+
+		fscanf(f_read,"%f",&temp);
+		fprintf(f_time, "%f\n", temp);
+
+		fscanf(f_read,"%f",&temp);
+		fprintf(f_temperature, "%f\n", temp);
+		getc(f_read);
+}
+
+}
